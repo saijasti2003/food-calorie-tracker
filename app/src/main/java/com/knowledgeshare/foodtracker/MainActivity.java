@@ -399,6 +399,9 @@ public class MainActivity extends Activity {
         InputStream in = code >= 400 ? c.getErrorStream() : c.getInputStream();
         String text = in == null ? "" : read(in);
         c.disconnect();
+        if (code == 401 || code == 403) throw new IOException("Server error " + code + ": Apps Script needs sign-in. "
+                + "Deploy > Manage deployments > Edit > Who has access: Anyone, Version: New version. Use the URL ending in /exec (not /dev).");
+        if (code == 404) throw new IOException("Server error 404: URL not found. Copy the Web app URL again (ends with /exec).");
         if (code >= 400) throw new IOException("Server error " + code);
         return text;
     }
