@@ -12,6 +12,25 @@ function doGet() {
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1');
 }
 
+/** Reads a script property, retrying because Google storage sometimes fails briefly. */
+function getProp_(name) {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get('prop_' + name);
+  if (cached) return cached;
+  let lastErr;
+  for (let i = 0; i < 4; i++) {
+    try {
+      const v = PropertiesService.getScriptProperties().getProperty(name);
+      if (v) cache.put('prop_' + name, v, 21600);
+      return v;
+    } catch (e) {
+      lastErr = e;
+      Utilities.sleep(500 * (i + 1));
+    }
+  }
+  throw lastErr;
+}
+
 function getSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = SHEET_NAME ? ss.getSheetByName(SHEET_NAME) : ss.getSheets()[0];
@@ -23,7 +42,7 @@ function getSheet_() {
 
 /** Sends the photo to Gemini and returns estimated nutrition. Nothing is saved yet. */
 function analyzeFood(base64, mimeType, note) {
-  const key = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+  const key = getProp_('GEMINI_API_KEY');
   if (!key) throw new Error('API key missing. Add GEMINI_API_KEY in Project Settings > Script properties.');
 
   const prompt =
@@ -105,7 +124,7 @@ function getTodayTotals() {
 function doPost(e) {
   try {
     const req = JSON.parse(e.postData.contents);
-    const token = PropertiesService.getScriptProperties().getProperty('APP_TOKEN');
+    const token = getProp_('APP_TOKEN');
     if (token && req.token !== token) throw new Error('Wrong app password. Check Settings in the app.');
     let out;
     if (req.action === 'analyze') out = analyzeFood(req.image, req.mimeType || 'image/jpeg', req.note || '');
