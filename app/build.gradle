@@ -10,8 +10,18 @@ android {
         applicationId 'com.knowledgeshare.foodtracker'
         minSdk 24
         targetSdk 34
-        versionCode 1
-        versionName '1.0'
+        versionCode Integer.parseInt(System.getenv('GITHUB_RUN_NUMBER') ?: '1') + 1
+        versionName "1.0.${System.getenv('GITHUB_RUN_NUMBER') ?: '0'}"
+    }
+
+    // Same key for every build, so updates install over the old version
+    signingConfigs {
+        debug {
+            storeFile file('foodtracker.keystore')
+            storePassword 'foodtracker'
+            keyAlias 'foodtracker'
+            keyPassword 'foodtracker'
+        }
     }
 
     buildTypes {
