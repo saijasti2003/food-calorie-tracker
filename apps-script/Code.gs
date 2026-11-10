@@ -4,7 +4,8 @@
  */
 
 const SHEET_NAME = '';                 // leave blank to use the first tab, or put your tab name
-const GEMINI_MODEL = 'gemini-3.8-flash'; // change here if Google renames the model
+// Tried in order. If one is busy (503) or retired (404), the next one is used.
+const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.7-flash'];
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
@@ -29,6 +30,30 @@ function getProp_(name) {
     }
   }
   throw lastErr;
+}
+
+/** Calls Gemini with retries on busy errors and fallback to the next model. */
+function callGemini_(key, payload) {
+  let lastMsg = '';
+  for (const model of GEMINI_MODELS) {
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent';
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const res = UrlFetchApp.fetch(url, {
+        method: 'post',
+        contentType: 'application/json',
+        headers: { 'x-goog-api-key': key },
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      });
+      const code = res.getResponseCode();
+      if (code === 200) return JSON.parse(res.getContentText());
+      lastMsg = 'Gemini error ' + code + ' (' + model + '): ' + res.getContentText().slice(0, 300);
+      if (code === 404) break;                                   // model retired -> next model
+      if (code === 429 || code >= 500) { Utilities.sleep(1500 * (attempt + 1)); continue; } // busy -> retry
+      throw new Error(lastMsg);                                  // bad key etc. -> stop
+    }
+  }
+  throw new Error('Gemini is busy right now, please try again in a minute. ' + lastMsg);
 }
 
 function getSheet_() {
@@ -63,20 +88,7 @@ function analyzeFood(base64, mimeType, note) {
     generationConfig: { responseMimeType: 'application/json' }
   };
 
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent';
-  const res = UrlFetchApp.fetch(url, {
-    method: 'post',
-    contentType: 'application/json',
-    headers: { 'x-goog-api-key': key },
-    payload: JSON.stringify(payload),
-    muteHttpExceptions: true
-  });
-
-  if (res.getResponseCode() !== 200) {
-    throw new Error('Gemini error ' + res.getResponseCode() + ': ' + res.getContentText().slice(0, 300));
-  }
-
-  const body = JSON.parse(res.getContentText());
+  const body = callGemini_(key, payload);
   const parts = (body.candidates && body.candidates[0].content && body.candidates[0].content.parts) || [];
   const text = parts.filter(p => p.text && !p.thought).map(p => p.text).join('');
   if (!text) throw new Error('Gemini returned no answer. Try again.');
