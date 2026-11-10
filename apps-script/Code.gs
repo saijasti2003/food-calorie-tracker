@@ -5,7 +5,9 @@
 
 const SHEET_NAME = '';                 // leave blank to use the first tab, or put your tab name
 // Tried in order. If one is busy (503) or retired (404), the next one is used.
-const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.7-flash'];
+const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash-lite'];   // 3.5 Flash-Lite has a much bigger free daily quota
+// Optional free backup: set OPENROUTER_API_KEY (openrouter.ai) to use its free models when Gemini is busy.
+const OPENROUTER_MODEL = 'openrouter/free';
 // Used when the script property CLAUDE_API_KEY is set (Claude first, Gemini as backup).
 const CLAUDE_MODEL = 'claude-sonnet-5-5';   // or 'claude-haiku-5-5' for cheaper / faster
 
@@ -50,8 +52,8 @@ function callGemini_(key, payload) {
       const code = res.getResponseCode();
       if (code === 200) return JSON.parse(res.getContentText());
       lastMsg = 'Gemini error ' + code + ' (' + model + '): ' + res.getContentText().slice(0, 300);
-      if (code === 404) break;                                   // model retired -> next model
-      if (code === 429 || code >= 500) { Utilities.sleep(1500 * (attempt + 1)); continue; } // busy -> retry
+      if (code === 404 || code === 429) break;                   // retired or daily free quota used -> next model
+      if (code >= 500) { Utilities.sleep(1500 * (attempt + 1)); continue; } // busy -> retry
       throw new Error(lastMsg);                                  // bad key etc. -> stop
     }
   }
@@ -79,21 +81,22 @@ function analyzeFood(base64, mimeType, note) {
     '"items":[{"name":"","quantity":"","calories":0}]}. ' +
     'If there is no food in the photo, return {"food":"NO_FOOD"}.';
 
-  const claudeKey = getProp_('CLAUDE_API_KEY');
-  const geminiKey = getProp_('GEMINI_API_KEY');
-  if (!claudeKey && !geminiKey) {
-    throw new Error('No API key. Add CLAUDE_API_KEY or GEMINI_API_KEY in Project Settings > Script properties.');
+  const providers = [
+    ['Claude', getProp_('CLAUDE_API_KEY'), askClaude_],
+    ['Gemini', getProp_('GEMINI_API_KEY'), askGemini_],
+    ['OpenRouter', getProp_('OPENROUTER_API_KEY'), askOpenRouter_]
+  ].filter(p => p[1]);
+  if (!providers.length) {
+    throw new Error('No API key. Add GEMINI_API_KEY (free) in Project Settings > Script properties.');
   }
 
-  let text, firstErr;
-  if (claudeKey) {
-    try { text = askClaude_(claudeKey, prompt, base64, mimeType); }
-    catch (e) { firstErr = e; if (!geminiKey) throw e; }
+  let text;
+  const errors = [];
+  for (const [name, key, fn] of providers) {
+    try { text = fn(key, prompt, base64, mimeType); break; }
+    catch (e) { errors.push(name + ': ' + e.message); }
   }
-  if (!text) {
-    try { text = askGemini_(geminiKey, prompt, base64, mimeType); }
-    catch (e) { throw firstErr ? new Error(firstErr.message + ' | Backup: ' + e.message) : e; }
-  }
+  if (!text) throw new Error(errors.join(' | '));
 
   const json = text.replace(/```json|```/g, '').trim();
   const data = JSON.parse(json.slice(json.indexOf('{'), json.lastIndexOf('}') + 1));
@@ -135,6 +138,33 @@ function askClaude_(key, prompt, base64, mimeType) {
     throw new Error(lastMsg);   // bad key, no credits, etc.
   }
   throw new Error(lastMsg);
+}
+
+/** OpenRouter free models (OpenAI-compatible). */
+function askOpenRouter_(key, prompt, base64, mimeType) {
+  const payload = {
+    model: OPENROUTER_MODEL,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'text', text: prompt },
+        { type: 'image_url', image_url: { url: 'data:' + mimeType + ';base64,' + base64 } }
+      ]
+    }]
+  };
+  const res = UrlFetchApp.fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'Authorization': 'Bearer ' + key },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+  const code = res.getResponseCode();
+  if (code !== 200) throw new Error('OpenRouter error ' + code + ': ' + res.getContentText().slice(0, 300));
+  const body = JSON.parse(res.getContentText());
+  const text = body.choices && body.choices[0] && body.choices[0].message && body.choices[0].message.content;
+  if (!text) throw new Error('OpenRouter returned no answer.');
+  return text;
 }
 
 /** Gemini (Google). */
