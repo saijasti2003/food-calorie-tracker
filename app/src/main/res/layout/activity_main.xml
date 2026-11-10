@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/scroll"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <!-- Today totals -->
+        <LinearLayout style="@style/Card">
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Today"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#1F2937"
+                android:layout_marginBottom="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                    <TextView android:id="@+id/tCal" style="@style/TotalNum" />
+                    <TextView style="@style/TotalLbl" android:text="kcal" />
+                </LinearLayout>
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                    <TextView android:id="@+id/tPro" style="@style/TotalNum" />
+                    <TextView style="@style/TotalLbl" android:text="Protein g" />
+                </LinearLayout>
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                    <TextView android:id="@+id/tCarb" style="@style/TotalNum" />
+                    <TextView style="@style/TotalLbl" android:text="Carbs g" />
+                </LinearLayout>
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical">
+                    <TextView android:id="@+id/tFat" style="@style/TotalNum" />
+                    <TextView style="@style/TotalLbl" android:text="Fat g" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/meals"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textSize="14sp"
+                android:textColor="#374151"
+                android:lineSpacingExtra="4dp" />
+        </LinearLayout>
+
+        <!-- Photo -->
+        <LinearLayout style="@style/Card">
+            <Button android:id="@+id/btnCamera" style="@style/BtnGreen" android:layout_marginTop="0dp" android:text="📷  Take Food Photo" />
+            <Button android:id="@+id/btnGallery" style="@style/BtnLight" android:text="🖼️  Choose from Gallery" />
+
+            <ImageView
+                android:id="@+id/preview"
+                android:layout_width="match_parent"
+                android:layout_height="240dp"
+                android:layout_marginTop="10dp"
+                android:scaleType="centerCrop"
+                android:visibility="gone" />
+
+            <TextView style="@style/Label" android:text="Note (optional) – e.g. 3 idli, 1 vada, chutney" />
+            <EditText
+                android:id="@+id/note"
+                style="@style/Field"
+                android:hint="Helps get a better estimate"
+                android:inputType="textCapSentences" />
+
+            <Button android:id="@+id/btnAnalyze" style="@style/BtnGreen" android:text="🔍  Get Calories" android:enabled="false" />
+
+            <ProgressBar
+                android:id="@+id/progress"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="10dp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/msg"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:textSize="15sp" />
+        </LinearLayout>
+
+        <!-- Result -->
+        <LinearLayout android:id="@+id/result" style="@style/Card" android:visibility="gone">
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Check &amp; Save"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#1F2937" />
+
+            <TextView style="@style/Label" android:text="Food" />
+            <EditText android:id="@+id/food" style="@style/Field" android:inputType="textCapSentences" />
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:layout_marginEnd="6dp">
+                    <TextView style="@style/Label" android:text="Calories (kcal)" />
+                    <EditText android:id="@+id/cal" style="@style/Field" android:inputType="numberDecimal" />
+                </LinearLayout>
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:layout_marginStart="6dp">
+                    <TextView style="@style/Label" android:text="Protein (g)" />
+                    <EditText android:id="@+id/pro" style="@style/Field" android:inputType="numberDecimal" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:layout_marginEnd="6dp">
+                    <TextView style="@style/Label" android:text="Carbs (g)" />
+                    <EditText android:id="@+id/carb" style="@style/Field" android:inputType="numberDecimal" />
+                </LinearLayout>
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical" android:layout_marginStart="6dp">
+                    <TextView style="@style/Label" android:text="Fat (g)" />
+                    <EditText android:id="@+id/fat" style="@style/Field" android:inputType="numberDecimal" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/items"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:textSize="13sp"
+                android:textColor="#4B5563"
+                android:lineSpacingExtra="3dp" />
+
+            <Button android:id="@+id/btnSave" style="@style/BtnGreen" android:text="✅  Save to Sheet" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>
