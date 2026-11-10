@@ -4,7 +4,7 @@
  */
 
 const SHEET_NAME = '';                 // leave blank to use the first tab, or put your tab name
-const GEMINI_MODEL = 'gemini-2.5-flash'; // change here if Google renames the model
+const GEMINI_MODEL = 'gemini-3.8-flash'; // change here if Google renames the model
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('Index')
@@ -41,7 +41,7 @@ function analyzeFood(base64, mimeType, note) {
       { text: prompt },
       { inline_data: { mime_type: mimeType, data: base64 } }
     ]}],
-    generationConfig: { responseMimeType: 'application/json', temperature: 0.2 }
+    generationConfig: { responseMimeType: 'application/json' }
   };
 
   const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent';
@@ -58,7 +58,9 @@ function analyzeFood(base64, mimeType, note) {
   }
 
   const body = JSON.parse(res.getContentText());
-  const text = body.candidates[0].content.parts[0].text;
+  const parts = (body.candidates && body.candidates[0].content && body.candidates[0].content.parts) || [];
+  const text = parts.filter(p => p.text && !p.thought).map(p => p.text).join('');
+  if (!text) throw new Error('Gemini returned no answer. Try again.');
   const data = JSON.parse(text.replace(/```json|```/g, '').trim());
   if (data.food === 'NO_FOOD') throw new Error('No food found in the photo. Try another picture.');
   return data;
