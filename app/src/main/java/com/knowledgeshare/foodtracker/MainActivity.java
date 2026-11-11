@@ -52,7 +52,7 @@ public class MainActivity extends Activity {
     private TextView tCal, tPro, tCarb, tFat, meals, msg, items;
     private ImageView preview;
     private EditText note, food, cal, pro, carb, fat;
-    private Button btnAnalyze, btnSave;
+    private Button btnAnalyze, btnSave, btnAskApp;
     private ProgressBar progress;
     private LinearLayout result;
     private ScrollView scroll;
@@ -79,6 +79,7 @@ public class MainActivity extends Activity {
         fat = findViewById(R.id.fat);
         btnAnalyze = findViewById(R.id.btnAnalyze);
         btnSave = findViewById(R.id.btnSave);
+        btnAskApp = findViewById(R.id.btnAskApp);
         progress = findViewById(R.id.progress);
         result = findViewById(R.id.result);
         scroll = findViewById(R.id.scroll);
@@ -87,6 +88,8 @@ public class MainActivity extends Activity {
         findViewById(R.id.btnGallery).setOnClickListener(v -> openGallery());
         btnAnalyze.setOnClickListener(v -> analyze());
         btnSave.setOnClickListener(v -> save());
+        btnAskApp.setOnClickListener(v -> askAiApp());
+        findViewById(R.id.btnPaste).setOnClickListener(v -> pasteAnswer());
 
         if (scriptUrl().isEmpty()) {
             showSettings();
@@ -193,6 +196,9 @@ public class MainActivity extends Activity {
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 bmp.compress(Bitmap.CompressFormat.JPEG, 85, bos);
                 String b64 = Base64.encodeToString(bos.toByteArray(), Base64.NO_WRAP);
+                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(ImageProvider.shareFile(this))) {
+                    fos.write(bos.toByteArray());
+                }
                 runOnUiThread(() -> {
                     imageBase64 = b64;
                     preview.setImageBitmap(bmp);
@@ -200,6 +206,7 @@ public class MainActivity extends Activity {
                     result.setVisibility(View.GONE);
                     setBusy(false, "");
                     btnAnalyze.setEnabled(true);
+                    btnAskApp.setEnabled(true);
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> { setBusy(false, ""); setMsg("Could not read photo: " + e.getMessage(), true); });
@@ -259,26 +266,7 @@ public class MainActivity extends Activity {
                     .put("mimeType", "image/jpeg")
                     .put("note", note.getText().toString().trim());
             call(req, data -> {
-                JSONObject d = (JSONObject) data;
-                food.setText(d.optString("food"));
-                cal.setText(num(d.optDouble("calories", 0)));
-                pro.setText(num(d.optDouble("protein_g", 0)));
-                carb.setText(num(d.optDouble("carbs_g", 0)));
-                fat.setText(num(d.optDouble("fat_g", 0)));
-                StringBuilder sb = new StringBuilder();
-                JSONArray arr = d.optJSONArray("items");
-                if (arr != null) {
-                    for (int i = 0; i < arr.length(); i++) {
-                        JSONObject it = arr.optJSONObject(i);
-                        if (it == null) continue;
-                        sb.append("• ").append(it.optString("name"));
-                        String q = it.optString("quantity");
-                        if (!q.isEmpty()) sb.append(" (").append(q).append(")");
-                        sb.append(" – ").append(num(it.optDouble("calories", 0))).append(" kcal\n");
-                    }
-                }
-                items.setText(sb.toString().trim());
-                result.setVisibility(View.VISIBLE);
+                fillResult((JSONObject) data);
                 btnAnalyze.setEnabled(true);
                 setBusy(false, "");
                 scroll.post(() -> scroll.smoothScrollTo(0, result.getTop()));
@@ -286,6 +274,89 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
             setBusy(false, ""); setMsg(e.getMessage(), true); btnAnalyze.setEnabled(true);
         }
+    }
+
+
+    // ---------- Use the ChatGPT / Claude / Gemini app (no API key) ----------
+
+    private static final String APP_PROMPT =
+            "You are a nutrition expert familiar with Indian food. Look at this food photo, identify each item and "
+            + "estimate the portion. Reply with ONLY this JSON on one line, nothing else: "
+            + "{\"food\":\"short name\",\"calories\":0,\"protein_g\":0,\"carbs_g\":0,\"fat_g\":0,"
+            + "\"items\":[{\"name\":\"\",\"quantity\":\"\",\"calories\":0}]}";
+
+    private void askAiApp() {
+        if (imageBase64 == null) return;
+        String noteText = note.getText().toString().trim();
+        String prompt = APP_PROMPT + (noteText.isEmpty() ? "" : " Extra info: " + noteText);
+
+        android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("prompt", prompt));
+
+        Uri uri = ImageProvider.shareUri();
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("image/jpeg");
+        send.putExtra(Intent.EXTRA_STREAM, uri);
+        send.putExtra(Intent.EXTRA_TEXT, prompt);
+        send.setClipData(android.content.ClipData.newRawUri("food", uri));
+        send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try {
+            startActivity(Intent.createChooser(send, "Send to ChatGPT / Claude / Gemini"));
+            setMsg("Question copied. If the AI app doesn't show it, long-press the box and Paste. "
+                    + "Then copy the AI's answer and come back to tap \"Paste AI answer\".", false);
+        } catch (ActivityNotFoundException e) {
+            setMsg("No app found to share with.", true);
+        }
+    }
+
+    private void pasteAnswer() {
+        android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        CharSequence clip = null;
+        if (cm.hasPrimaryClip() && cm.getPrimaryClip() != null && cm.getPrimaryClip().getItemCount() > 0) {
+            clip = cm.getPrimaryClip().getItemAt(0).coerceToText(this);
+        }
+        if (clip == null || clip.length() == 0) {
+            setMsg("Clipboard is empty. In the AI app, tap Copy on its answer first.", true);
+            return;
+        }
+        String t = clip.toString().replace("```json", "").replace("```", "");
+        int s = t.indexOf('{'), e = t.lastIndexOf('}');
+        try {
+            if (s < 0 || e <= s) throw new Exception();
+            JSONObject d = new JSONObject(t.substring(s, e + 1));
+            if (!d.has("calories")) throw new Exception();
+            fillResult(d);
+            setMsg("Answer loaded. Check the numbers and tap Save.", false);
+            scroll.post(() -> scroll.smoothScrollTo(0, result.getTop()));
+        } catch (Exception ex) {
+            if (t.trim().startsWith(APP_PROMPT.substring(0, 20))) {
+                setMsg("Clipboard still has the question. Copy the AI's answer first.", true);
+            } else {
+                setMsg("Couldn't read numbers from the copied answer. Ask the AI to reply in the JSON format.", true);
+            }
+        }
+    }
+
+    private void fillResult(JSONObject d) {
+        food.setText(d.optString("food"));
+        cal.setText(num(d.optDouble("calories", 0)));
+        pro.setText(num(d.optDouble("protein_g", 0)));
+        carb.setText(num(d.optDouble("carbs_g", 0)));
+        fat.setText(num(d.optDouble("fat_g", 0)));
+        StringBuilder sb = new StringBuilder();
+        JSONArray arr = d.optJSONArray("items");
+        if (arr != null) {
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject it = arr.optJSONObject(i);
+                if (it == null) continue;
+                sb.append("• ").append(it.optString("name"));
+                String q = it.optString("quantity");
+                if (!q.isEmpty()) sb.append(" (").append(q).append(")");
+                sb.append(" – ").append(num(it.optDouble("calories", 0))).append(" kcal\n");
+            }
+        }
+        items.setText(sb.toString().trim());
+        result.setVisibility(View.VISIBLE);
     }
 
     private void save() {
@@ -306,6 +377,7 @@ public class MainActivity extends Activity {
                 note.setText("");
                 imageBase64 = null;
                 btnAnalyze.setEnabled(false);
+                btnAskApp.setEnabled(false);
                 btnSave.setEnabled(true);
                 setBusy(false, "");
                 setMsg("Saved to your sheet ✅", false);

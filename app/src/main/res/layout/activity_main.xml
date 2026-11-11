@@ -74,7 +74,11 @@
                 android:hint="Helps get a better estimate"
                 android:inputType="textCapSentences" />
 
-            <Button android:id="@+id/btnAnalyze" style="@style/BtnGreen" android:text="🔍  Get Calories" android:enabled="false" />
+            <Button android:id="@+id/btnAnalyze" style="@style/BtnGreen" android:text="🔍  Get Calories (automatic)" android:enabled="false" />
+
+            <TextView style="@style/Label" android:gravity="center" android:text="— or use your ChatGPT / Claude / Gemini app (no API key) —" />
+            <Button android:id="@+id/btnAskApp" style="@style/BtnLight" android:text="🤖  1. Ask AI app" android:enabled="false" />
+            <Button android:id="@+id/btnPaste" style="@style/BtnLight" android:text="📋  2. Paste AI answer" />
 
             <ProgressBar
                 android:id="@+id/progress"

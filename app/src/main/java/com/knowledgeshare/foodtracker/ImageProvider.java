@@ -25,6 +25,24 @@ public class ImageProvider extends ContentProvider {
         return Uri.parse("content://" + AUTHORITY + "/" + FILE_NAME);
     }
 
+    /** Small JPEG copy of the current photo, shared to ChatGPT / Claude / Gemini apps. */
+    public static final String SHARE_NAME = "food.jpg";
+
+    public static File shareFile(android.content.Context ctx) {
+        return new File(ctx.getCacheDir(), SHARE_NAME);
+    }
+
+    public static Uri shareUri() {
+        return Uri.parse("content://" + AUTHORITY + "/" + SHARE_NAME);
+    }
+
+    private File fileFor(Uri uri) throws FileNotFoundException {
+        String seg = uri.getLastPathSegment();
+        if (FILE_NAME.equals(seg)) return photoFile(getContext());
+        if (SHARE_NAME.equals(seg)) return shareFile(getContext());
+        throw new FileNotFoundException(uri.toString());
+    }
+
     @Override
     public boolean onCreate() {
         return true;
@@ -32,8 +50,7 @@ public class ImageProvider extends ContentProvider {
 
     @Override
     public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
-        if (!FILE_NAME.equals(uri.getLastPathSegment())) throw new FileNotFoundException(uri.toString());
-        File f = photoFile(getContext());
+        File f = fileFor(uri);
         int pfdMode = ParcelFileDescriptor.parseMode(mode);
         if (mode.contains("w")) pfdMode |= ParcelFileDescriptor.MODE_CREATE;
         return ParcelFileDescriptor.open(f, pfdMode);
@@ -46,9 +63,10 @@ public class ImageProvider extends ContentProvider {
 
     @Override
     public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
-        File f = photoFile(getContext());
+        File f;
+        try { f = fileFor(uri); } catch (FileNotFoundException e) { return null; }
         MatrixCursor c = new MatrixCursor(new String[]{OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE});
-        c.addRow(new Object[]{FILE_NAME, f.length()});
+        c.addRow(new Object[]{f.getName(), f.length()});
         return c;
     }
 
